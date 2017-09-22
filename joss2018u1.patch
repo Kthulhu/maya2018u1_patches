@@ -1,0 +1,523 @@
+diff -rupwbB scripts\AETemplates\AEcameraImagePlaneNew.mel patches\AETemplates\AEcameraImagePlaneNew.mel
+--- scripts\AETemplates\AEcameraImagePlaneNew.mel	Mon May 29 20:35:31 2017
++++ patches\AETemplates\AEcameraImagePlaneNew.mel	Mon Sep 18 15:48:43 2017
+@@ -66,6 +66,13 @@ global proc AEcameraImagePlaneCommand(st
+ 
+ 	// create imageplane shape.
+ 	string $newImagePlane[] = createImagePlane($cameraName[0]);
++	//JOSS:
++	if(size($newImagePlane))
++	{
++		if(!`objExists "im_planes"`) {sets -empty -name "im_planes";}
++		sets -addElement "im_planes" $newImagePlane[0];
++	}
++	// JOSS end
+ }
+ 
+ 
+Only in patches: AETemplates_custom
+Only in patches: joss2018u1.patch
+diff -rupwbB scripts\others\buildHypergraphNodePopupMenuItems.mel patches\others\buildHypergraphNodePopupMenuItems.mel
+--- scripts\others\buildHypergraphNodePopupMenuItems.mel	Mon May 29 20:37:52 2017
++++ patches\others\buildHypergraphNodePopupMenuItems.mel	Mon Sep 18 15:53:44 2017
+@@ -131,6 +131,18 @@ global proc buildHypergraphNodePopupMenu
+ 				-label (uiRes("m_buildHypergraphNodePopupMenuItems.kSelectObjectsWithMaterial"))
+ 				-command ("hyperShade -objects " + $node);
+ 
++			// Joss start
++			menuItem 
++				-radialPosition "W"
++				-label "Duplicate shading network"
++				-command ("hyperShade -duplicate " + $node);
++
++			menuItem 
++				-radialPosition "SE"
++				-label "Select parts of objs with material"
++				-command ("getMatSel " + $node);
++			// Joss end
++
+ 			menuItem 
+ 				-label (uiRes("m_buildHypergraphNodePopupMenuItems.kFrameObjectsWithMaterial"))
+ 				-command 
+Only in patches\others: dagMenuProc.mel
+diff -rupwbB scripts\others\doGroup.mel patches\others\doGroup.mel
+--- scripts\others\doGroup.mel	Mon May 29 20:37:32 2017
++++ patches\others\doGroup.mel	Mon Sep 18 16:01:50 2017
+@@ -16,6 +16,10 @@
+ global proc doGroup( int $world, int $preserve, int $zeropiv )
+ {
+ 	string $cmd = "group";
++	// Joss: using some meaningful name for the group
++	string $tt[] = `ls -hd 1 -sl`;
++	if (size($tt)) $cmd += (" -name " + $tt[0] + "_tr");
++	// Joss end
+ 	string $typeIvm = " -smg";
+ 	string $msgIvm = (uiRes("m_doGroup.kIvmGroupSuccess"));
+ 
+diff -rupwbB scripts\others\doPlayblastArgList.mel patches\others\doPlayblastArgList.mel
+--- scripts\others\doPlayblastArgList.mel	Mon May 29 20:36:27 2017
++++ patches\others\doPlayblastArgList.mel	Mon Sep 18 16:02:36 2017
+@@ -46,6 +46,9 @@ proc string confirmPlayblastOverwrite( s
+ 			break;
+ 	}
+ 	string $cancel = (uiRes("m_doPlayblastArgList.kCancel"));
++	//JOSS:
++	string $ok = (uiRes("m_doPlayblastArgList.kOk"));
++	//JOSS end
+ 
+ 	string $result = `confirmDialog
+ 		-title (uiRes("m_doPlayblastArgList.kPlayblastError"))
+@@ -53,7 +56,9 @@ proc string confirmPlayblastOverwrite( s
+ 		-messageAlign center
+ 		-button (uiRes("m_doPlayblastArgList.kOk"))
+ 		-button $cancel
+-		-defaultButton $cancel
++		//JOSS: "-defaultButton" changed from "cancel" to "ok"
++		//-defaultButton $cancel
++		-defaultButton $ok
+ 		-cancelButton $cancel
+ 		-dismissString  $cancel`;
+ 	return $result;
+diff -rupwbB scripts\others\dynAddAttrWin.mel patches\others\dynAddAttrWin.mel
+--- scripts\others\dynAddAttrWin.mel	Mon May 29 20:37:30 2017
++++ patches\others\dynAddAttrWin.mel	Mon Sep 18 16:03:28 2017
+@@ -1467,6 +1467,10 @@ proc registerDAA()
+ 
+ global proc resetDAA()
+ {
++	// Joss: window reset removed
++	return;
++	// Joss end
++
+ 	global string   $gObjectsDAA[];		// List of selected objects.
+ 	global int		$gParticleModeDAA;	// Enable particle array mode.
+ 	global int		$gScalarAryDAA;
+diff -rupwbB scripts\others\getAutomaticCacheName.mel patches\others\getAutomaticCacheName.mel
+--- scripts\others\getAutomaticCacheName.mel	Mon May 29 20:38:05 2017
++++ patches\others\getAutomaticCacheName.mel	Mon Jul 06 05:19:22 2015
+@@ -1,34 +1,18 @@
+-// ===========================================================================
+-// Copyright 2017 Autodesk, Inc. All rights reserved.
+-//
+-// Use of this software is subject to the terms of the Autodesk license
+-// agreement provided at the time of installation or download, or which
+-// otherwise accompanies this software in either electronic or hard copy form.
+-// ===========================================================================
+-//
+-//
+-//  Creation Date:  2005
+-//
+-//  Description:
+-//		
+-//
+-
++// JOSS: it's easier to just totally replace that func
+ global proc string getAutomaticCacheName() 
+ {
+-	string $objs[] = getGeometriesToCache();
+-	string $name = "";
+-		
+-	if( size($objs) == 0 ) { return $name; }
+-	else { $name = $objs[0]; }
++	string $t, $tt[];
++	$tt = splitStr_j(sceneName_j(), "\\/.");
+ 		
+-	// Strip away invalid characters such as dagPath separators "|"
+-	// and replace namespaces ":" with "_".
+-	//
+-	string $buffer[];
+-	int $count = tokenize($name,"|",$buffer);
+-	$name = $buffer[$count-1];
+-	$name = substituteAllString($name,":","_");
+-
+-	return $name;
++	// if we have empty scene name or some shit happened:
++	if( size($tt) < 2 )
++	{
++		$t = "empty";
++	}
++	else
++	{
++		$t = $tt[size($tt)-2];	// last element is extension, and one before it - name
++		$t = ("cache_"+$t);
++	}
++	return($t);
+ }
+-
+diff -rupwbB scripts\others\graphEditorPanel.mel patches\others\graphEditorPanel.mel
+--- scripts\others\graphEditorPanel.mel	Thu Aug 31 10:26:36 2017
++++ patches\others\graphEditorPanel.mel	Mon Sep 18 16:05:07 2017
+@@ -969,7 +969,10 @@ global proc defineGraphEditorPopupMenu( 
+     string $fullname  = "canvasLayout" + "|" + $popup; // current menu is expected to be built over graphEditorX|formLayoutX|paneLayoutX|canvasLayout 
+ 
+     popupMenu
+-        -ctrlModifier false
++		//Joss: switching that stupid menu to "ctrl" mode
++		-ctrlModifier true
++		// -ctrlModifier false
++		// Joss end
+         -button 3
+         -allowOptionBoxes false
+         -parent $graphEd
+diff -rupwbB scripts\others\hyperShadePanel.mel patches\others\hyperShadePanel.mel
+--- scripts\others\hyperShadePanel.mel	Fri Jun 09 16:13:35 2017
++++ patches\others\hyperShadePanel.mel	Mon Sep 18 16:06:45 2017
+@@ -7926,6 +7926,25 @@ proc createHypershadeNodeEditorToolbarFo
+ 		-c ("hyperShadeToggleRegraphButtons(-1)")
+ 		regraphCollapseButton;
+ 
++	// JOSS: added 2 buttons to hypershade toolbar
++		iconTextButton
++			-image1 "joss/j_create1_32.png"
++			-width $iconSize
++			-height $iconSize
++			-annotation "Create new nodes"
++			-command ("hyperShadePanelMenuCommand(\"" + $panel + "\", \"createNewNode\")") createNewNodesButton;
++    
++		iconTextButton
++			-image1 "joss/j_duplicate2_32.png"
++			-width $iconSize
++			-height $iconSize
++			-annotation "Duplicate with input connections"
++			-command ("if(size(`ls -sl`)){hyperShadePanelMenuCommand(\"" + $panel + "\", \"duplicateWithConnections\");}") duplicateConnectionsButton;
++
++		separator -height $iconSize -horizontal false -style single separator3j;
++		// JOSS end
++
++
+ 	iconTextButton
+ 		-image1 "hsUpStreamCon.png"
+ 		-width $iconSize
+diff -rupwbB scripts\others\imageFormats.mel patches\others\imageFormats.mel
+--- scripts\others\imageFormats.mel	Mon May 29 20:38:22 2017
++++ patches\others\imageFormats.mel	Mon Jul 06 05:19:22 2015
+@@ -1,67 +1,46 @@
+-// ===========================================================================
+-// Copyright 2017 Autodesk, Inc. All rights reserved.
+-//
+-// Use of this software is subject to the terms of the Autodesk license
+-// agreement provided at the time of installation or download, or which
+-// otherwise accompanies this software in either electronic or hard copy form.
+-// ===========================================================================
+-//  Description:
+-//  	Image format data. Ascii file which the user can modify
+-//		in order to add new image formats.
+-//
+-//		IMPORTANT NOTES:
+-//		1) The entry Targa_PAL_(tga) is repeated in $gImageFormatData
+-//		because it is a dummy entry that holds the place of the
+-//		divider in the menu. Its position is kept in
+-//		$gImageFormatDividerPosition.
+-//		2) The special dpi value '0' signals that the dpi is unspecified.
+-//		When a preset with this value is chosen, it won't change the current dpi.
+-//
+-
+ global float	$gDefaultDpi = 72.000;
+-// Position of menuItem divider between view formats and
+-// print formats.
+-global int		$gImageFormatDividerPosition = 19;
+-
++global int		$gImageFormatDividerPosition = 3;
+ global string	$gImageFormatData[] =
+ {
+ //  name              width height aspect ratio dpi
+ // -------------------------------------------------
+-	"320x240            320  240 1.333 72.000",
+-	"640x480            640  480 1.333 72.000",
++	"HD_1080           1920 1080 1.777 72.000",
++	"HD_720            1280  720 1.777 72.000",
++	"HD_540             960  540 1.777 72.000",
+ 	"1k_Square         1024 1024 1.000 72.000",
+ 	"2k_Square         2048 2048 1.000 72.000",
+ 	"3k_Square         3072 3072 1.000 72.000",
+-	"4k_Square         4096 4096 1.000 72.000",
++	"4k_Square         4096 4096 1.000 72.000"
++};
++
++// PLE caps render resolution by kPLEMaxX & kPLEMaxY
++global string	$gPLEImageFormatData[] =
++{
++//  name              width height aspect ratio dpi
++// -------------------------------------------------
++	"320x240            320  240 1.333 72.000",
++	"640x480            640  480 1.333 72.000",
+ 	"CCIR_PAL/Quantel_PAL 720  576 1.333 72.000",
+ 	"CCIR_601/Quantel_NTSC 720  486 1.333 72.000",
+ 	"Full_1024         1024  768 1.333 72.000",
+-	"Full_1280/Screen  1280 1024 1.333 72.000",
+-	"HD_540             960  540 1.777 72.000",
+-	"HD_720            1280  720 1.777 72.000",
+-	"HD_1080           1920 1080 1.777 72.000",
+ 	"NTSC_4d            646  485 1.333 72.000",
+ 	"PAL_768            768  576 1.333 72.000",
+ 	"PAL_780            780  576 1.333 72.000",
+ 	"Targa_486_(tga)    512  486 1.333 72.000",
+ 	"Targa_NTSC_(tga)   512  482 1.333 72.000",
+-	"Targa_PAL_(tga)    512  576 1.333 72.000",
+-
+-	// NOTE: this is a dummy entry (see above)
+-	"Targa_PAL_(tga)    512  576 1.333 72.000",
++	"Targa_PAL_(tga)    512  576 1.333 72.000"
++};
+ 
+-	"Letter            2550 3300 0.773 300.000",
+-	"Legal             2550 4200 0.607 300.000",
+-	"Tabloid           5100 3300 1.545 300.000",
+-	"A4                2480 3508 0.707 300.000",
+-	"A3                3507 4962 0.707 300.000",
+-	"B5                2079 2952 0.704 300.000",
+-	"B4                2952 4170 0.708 300.000",
+-	"B3                4170 5907 0.706 300.000",
+-	"2\"x3\"            600  900 0.667 300.000",
+-	"4\"x6\"           1200 1800 0.667 300.000",
+-	"5\"x7\"           1500 2100 0.714 300.000",
+-	"8\"x10\"          2400 3000 0.800 300.000"
++// PLE caps mental render resolution by kPLEMentalMaxX & kPLEMentalMaxY
++// In PLE 6.0 kPLEMentalMaxX = 512 & kPLEMentalMaxY = 512
++//
++global string	$gPLEImageFormatData_Mental[] =
++{
++//  name              width height aspect ratio dpi
++// -------------------------------------------------
++	"320x240            320  240 1.333 72.000",
++	"Targa_486_(tga)    512  486 1.333 72.000",
++	"Targa_NTSC_(tga)   512  482 1.333 72.000"
+ };
+ 
+ global proc string imageFormats_melToUI (string $mel)
+diff -rupwbB scripts\others\importImagePlane.mel patches\others\importImagePlane.mel
+--- scripts\others\importImagePlane.mel	Mon May 29 20:37:30 2017
++++ patches\others\importImagePlane.mel	Mon Sep 18 16:07:25 2017
+@@ -33,6 +33,14 @@ global proc int createImportedImagePlane
+ 			// create imageplane shape.
+ 			string $newImagePlane[] = createImagePlane($cameraList[0]);
+ 
++			//JOSS:
++			if(size($newImagePlane))
++			{
++				if(!`objExists "im_planes"`) {sets -empty -name "im_planes";}
++				sets -addElement "im_planes" $newImagePlane[0];
++			}
++			// JOSS end
++
+             // set the image plane type to image file
+             setAttr ($newImagePlane[1] + ".type") 0; 	 	
+ 
+diff -rupwbB scripts\others\OutlinerEdMenu.mel patches\others\OutlinerEdMenu.mel
+--- scripts\others\OutlinerEdMenu.mel	Tue May 30 04:37:31 2017
++++ patches\others\OutlinerEdMenu.mel	Mon Sep 18 16:08:17 2017
+@@ -1206,6 +1206,26 @@ global proc OutlinerEdMenu (string $outl
+ 	string $menuName = $outlineEd + "Popup";
+ 	$gOutlinerPopupMenu = $menuName;
+ 
++	//JOSS start:
++	menuItem -label "Switch BBox state"
++		-command "switchBboxState_inter()"
++		swBBoxItem;
++
++	menuItem -label "Switch Template state"
++		-command "switchTemplateState_inter()"
++		swTemplateItem;
++
++	menuItem -label "Switch Reference state"
++		-command "switchRefState_inter()"
++		swReferenceItem;
++
++	menuItem -label "Switch Shading state"
++		-command "switchShadingState_inter()"
++		swShadingItem;
++	menuItem -divider true;
++	//JOSS end
++
++
+ 	popupMenu
+ 		-ctrlModifier false
+ 		-button 3
+diff -rupwbB scripts\others\performPlayblast.mel patches\others\performPlayblast.mel
+--- scripts\others\performPlayblast.mel	Mon May 29 20:36:27 2017
++++ patches\others\performPlayblast.mel	Mon Sep 18 16:09:02 2017
+@@ -216,7 +216,12 @@ global proc playblastSetup (string $pare
+ 	// filename (note that optionVars should *not* be set
+ 	// in this proc, setOptionVars() does that)
+ 	// 
+-	string $filename = `optionVar -query playblastFile`;
++	//string $filename = `optionVar -query playblastFile`;
++
++	// Joss: putting playblast file into temp dir
++	string $filename = (`getenv "TEMP"`+"/playblast");
++	// Joss end:
++	
+ 	textFieldGrp -e -fileName $filename movieFileName;
+ 
+ 	// Clear Cache
+diff -rupwbB scripts\others\performPolyMove.mel patches\others\performPolyMove.mel
+--- scripts\others\performPolyMove.mel	Mon May 29 20:38:35 2017
++++ patches\others\performPolyMove.mel	Mon Sep 18 16:09:31 2017
+@@ -141,6 +141,14 @@ proc polyMoveOptions (string $comp)
+ 	$parent;
+ 	
+ 	setUITemplate -popTemplate;
++
++	// JOSS:
++	if ($comp == "")
++	{
++		$comp = selectionType(`sel`, 1);
++		if ($comp == "" || $comp == "mesh") $comp = "vtx";
++	}
++	// JOSS end
+ 	   
+ 	string $lbl, $buttonLbl;
+ 	if ($comp == "f") 			$lbl = (uiRes("m_performPolyMove.kFace")); 
+diff -rupwbB scripts\others\renderWindowPanel.mel patches\others\renderWindowPanel.mel
+--- scripts\others\renderWindowPanel.mel	Mon May 29 20:39:12 2017
++++ patches\others\renderWindowPanel.mel	Mon Sep 18 16:10:21 2017
+@@ -4460,12 +4460,22 @@ global proc renderIntoNewWindow(string $
+ 		$width -= 40;
+ 		$height -= 120;
+ 
+-		if( $width < $res[0] || $height < $res[1] )
++		//JOSS:
++		/*if( $width < $res[0] || $height < $res[1] )
+ 		{
+ 			$width = $res[0] + 40;
+ 			$height = $res[1] + 120;
+ 			window -e -w $width -h $height -retain $renderWindow;
+-		}
++		}*/
++		$width = ($res[0] < 420)?480:$res[0] + 60;
++		$height = ($res[1] < 250)?400:$res[1] + 150;
++		int $leftEdge = `window -q -leftEdge $renderWindow`;
++		if($leftEdge < 0) $leftEdge = 100;
++		int $topEdge = `window -q -topEdge $renderWindow`;
++		if($topEdge < 0) $topEdge = 100;
++		window -e -w $width -h $height -leftEdge $leftEdge -topEdge $topEdge -retain $renderWindow;
++		renderWindowEditor -edit -realSize $editor;
++		//JOSS end
+ 
+ 		//
+ 		//	Render the current camera panel at the test resolution...
+diff -rupwbB scripts\others\saveChanges.mel patches\others\saveChanges.mel
+--- scripts\others\saveChanges.mel	Mon May 29 20:39:12 2017
++++ patches\others\saveChanges.mel	Mon Sep 18 16:11:26 2017
+@@ -34,6 +34,8 @@ global proc int saveChanges ( string $sa
+ 	string $result;
+ 	int $returnValue = 1;
+ 	
++	// Joss: Save file dialog commmented out. Learn to press Ctrl-S when you need it.
++	/*
+ 	if (`file -q -mf`) {
+ 		$fileName = `file -q -sceneName`;
+ 
+@@ -86,6 +88,7 @@ global proc int saveChanges ( string $sa
+ 			}
+ 		}
+ 	}
++    */
+ 
+ 	if ($returnValue == 1) {
+ 		if ($saveChangeAction != "") {
+diff -rupwbB scripts\others\showEditor.mel patches\others\showEditor.mel
+--- scripts\others\showEditor.mel	Thu Aug 31 10:25:58 2017
++++ patches\others\showEditor.mel	Mon Sep 18 16:12:18 2017
+@@ -3794,7 +3794,9 @@ global proc createAEWindowContents( stri
+ 
+ 	setParent $parent;
+ 
+-	int $inWindow = ( $parent == "AEWindow" );
++	//JOSS for some reason floating AE thinks it's "inWindow":
++	int $inWindow = 1;
++	//int $inWindow = ( $parent == "AEWindow" );
+ 
+ 	//	Need a menuBarLayout here
+ 
+Only in patches\others: todo.txt
+diff -rupwbB scripts\startup\hotkeySetup.mel patches\startup\hotkeySetup.mel
+--- scripts\startup\hotkeySetup.mel	Wed May 31 20:24:59 2017
++++ patches\startup\hotkeySetup.mel	Mon Sep 18 15:50:07 2017
+@@ -68,7 +68,8 @@ hotkey -k "z" -name "NameComUndo";
+ hotkey -k "z" -ctl -name "NameComUndo";
+ hotkey -k "Z" -name "NameComRedo";
+ 
+-hotkey -k "q" -ctl -name "NameComQuit";
++//Joss: whoever did that is a fn retard
++//hotkey -k "q" -ctl -name "NameComQuit";
+ 
+ hotkey -k "o" -ctl -name "NameComOpen_File";
+ hotkey -k "n" -ctl -name "NameComNew_File";
+@@ -76,7 +77,10 @@ hotkey -k "s" -ctl -name "NameComSave_Fi
+ hotkey -k "S" -ctl -name "NameComSave_File_As";
+ hotkey -k "s" -alt -ctl -name "NameIncSave_File";
+ hotkey -k "r" -ctl -name "NameComCreate_Reference";
+-hotkey -k "g" -ctl -name "NameComGroup_Selected";
++//Joss: just assigning "g" hotkey for "Group selected" instead of "Ctrl+g"
++//hotkey -k "g" -ctl -name "NameComGroup_Selected";
++hotkey -k "g" -name "NameComGroup_Selected";
++// Joss end
+ 
+ hotkey -k "I" -ctl -name "NameComInvert_Selection";
+ 
+diff -rupwbB scripts\startup\statusLine.mel patches\startup\statusLine.mel
+--- scripts\startup\statusLine.mel	Thu Aug 31 10:26:46 2017
++++ patches\startup\statusLine.mel	Mon Sep 18 16:25:58 2017
+@@ -3063,6 +3063,18 @@ registerUpdateRendererUIProc("updateStat
+ 		//
+ 		// Create the rendering icons
+ 		//
++		//JOSS: HypershadeButton moved here from below the renderGlobals one
++		$cmd = "HypershadeWindow";
++		iconTextButton
++			-image1 "hypershadeIcon.png"
++			-width $iconHeight -height $iconHeight
++			-command $cmd
++			-annotation (getRunTimeCommandAnnotation($cmd))
++			-version 2016
++			-ltVersion 2016
++			hypershadeButton;
++		// Joss end
++
+ 		$cmd = "RenderViewWindow";
+ 		iconTextButton
+ 			-image1 "rvOpenWindow.png"
+@@ -3079,6 +3091,22 @@ registerUpdateRendererUIProc("updateStat
+ 			-annotation (getRunTimeCommandAnnotation($cmd))
+ 			renderButton;
+ 
++		//Joss: added resolution changer to "Render" button
++		popupMenu -b 3 renderResMenu_j;
++			menuItem
++				-l "Render settings"
++				-c "setTestResolutionVar(1);" renderResMenuItem1;
++			menuItem
++				-l "75%"
++				-c "setTestResolutionVar(5);" renderResMenuItem2;
++			menuItem
++				-l "50%"
++				-c "setTestResolutionVar(4);" renderResMenuItem3;
++			menuItem
++				-l "25%"
++				-c "setTestResolutionVar(3);" renderResMenuItem4;
++		//Joss end
++
+ 		$cmd = "IPRRenderIntoNewWindow";
+ 		iconTextButton
+ 			-image1 "rvIprRender.png"
+@@ -3095,7 +3123,8 @@ registerUpdateRendererUIProc("updateStat
+ 			-annotation (getRunTimeCommandAnnotation($cmd))
+ 			renderGlobalsButton;
+ 
+-		string $command = "HypershadeWindow";
++		// Joss start: commented out old button
++		/*string $command = "HypershadeWindow";
+ 		string $annotation = getRunTimeCommandAnnotation($command);
+ 		iconTextButton
+ 			-image1 "hypershadeIcon.png"
+@@ -3104,7 +3133,8 @@ registerUpdateRendererUIProc("updateStat
+ 			-annotation $annotation
+ 			-version 2016
+ 			-ltVersion 2016
+-			hypershadeButton;
++			hypershadeButton;*/
++		// Joss end
+ 
+ 		if( mayaHasRenderSetup() ) {
+ 			$command = "RenderSetupWindow";
